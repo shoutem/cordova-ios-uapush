@@ -176,28 +176,40 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 }
 
 #pragma mark Phonegap bridge
+- (NSDictionary *)notificationWithApplicationStateFromNotification:(NSDictionary *)notification active:(BOOL)active opened:(BOOL)opened
+{
+    NSDictionary *applicationStateDictionary = @{@"active": [NSNumber numberWithBool:active],
+                                                 @"openedFromNotification": [NSNumber numberWithBool:opened]};
+    
+    return @{@"notification": notification,
+             @"applicationState": applicationStateDictionary};
+}
 
 //events
+- (void)raisePush:(NSString *)message withExtras:(NSDictionary *)extras
+{
+    [self raisePush:message withExtras:extras active:NO opened:NO];
+}
 
-- (void)raisePush:(NSString *)message withExtras:(NSDictionary *)extras {
-
+- (void)raisePush:(NSString *)message withExtras:(NSDictionary *)extras active:(BOOL)active opened:(BOOL)opened
+{
     if (!message || !extras) {
         UALOG(@"PushNotificationPlugin: attempted to raise push with nil message or extras");
         message = @"";
         extras = [NSMutableDictionary dictionary];
     }
-
+    
     NSMutableDictionary *data = [NSMutableDictionary dictionary];
-
+    
     [data setObject:message forKey:@"message"];
     [data setObject:extras forKey:@"extras"];
-
+    
     UA_SBJsonWriter *writer = [[[UA_SBJsonWriter alloc] init] autorelease];
-    NSString *json = [writer stringWithObject:data];
+    NSString *json = [writer stringWithObject:[self notificationWithApplicationStateFromNotification:data active:active opened:opened]];
     NSString *js = [NSString stringWithFormat:@"window.pushNotification.pushCallback(%@);", json];
-
+    
     [self writeJavascript:js];
-
+    
     UALOG(@"js callback: %@", js);
 }
 
@@ -346,6 +358,8 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     }];
 }
 
+// active: false
+// openedFromNotification: true
 - (void)getIncoming:(NSMutableArray *)args withDict:(NSMutableDictionary *)options {
     [self performCallbackWithArgs:args expecting:nil withBlock:^(NSArray *args){
         NSString *incomingAlert = @"";
@@ -366,7 +380,8 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
         //reset incoming push data until the next background push comes in
         [[UAAppDelegateSurrogate shared] clearLaunchOptions];
 
-        return returnDictionary;
+        //return returnDictionary;
+        return [self notificationWithApplicationStateFromNotification:returnDictionary active:NO opened:YES];
     }];
 }
 
@@ -559,7 +574,18 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     NSString *alert = [self alertForUserInfo:userInfo];
     NSMutableDictionary *extras = [self extrasForUserInfo:userInfo];
 
-    [self raisePush:alert withExtras:extras];
+    if (application.applicationState == UIApplicationStateActive)
+    {
+        // active: true
+        // openedFromNotification: false
+        [self raisePush:alert withExtras:extras];
+    }
+    else
+    {
+        // active: false
+        // openedFromNotification: false
+        [self raisePush:alert withExtras:extras];
+    }
 }
 
 #pragma mark Other stuff
