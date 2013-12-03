@@ -580,7 +580,13 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
         // openedFromNotification: false
         [self raisePush:alert withExtras:extras active:YES opened:NO];
     }
-    else
+    else if (application.applicationState == UIApplicationStateBackground)
+    {
+        // active: false
+        // openedFromNotification: true
+        [self raisePush:alert withExtras:extras active:NO opened:YES];
+    }
+    else if (application.applicationState == UIApplicationStateBackground)
     {
         // active: false
         // openedFromNotification: false
