@@ -578,13 +578,13 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     {
         // active: true
         // openedFromNotification: false
-        [self raisePush:alert withExtras:extras];
+        [self raisePush:alert withExtras:extras active:YES opened:NO];
     }
     else
     {
         // active: false
         // openedFromNotification: false
-        [self raisePush:alert withExtras:extras];
+        [self raisePush:alert withExtras:extras active:NO opened:NO];
     }
 }
 
