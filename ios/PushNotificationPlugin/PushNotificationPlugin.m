@@ -44,7 +44,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     
     [[UAPush shared] resetBadge];//zero badge on startup
     [UAPush shared].pushNotificationDelegate = self;
-    [[UAPush shared] addObserver:self];
+    [UAPush shared].registrationDelegate = self;
     
     [[UAirship shared].locationService startReportingSignificantLocationChanges];
 }
@@ -209,7 +209,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     [data setObject:extras forKey:@"extras"];
     
     NSString *json = [NSJSONSerialization stringWithObject:[self notificationWithApplicationStateFromNotification:data active:active opened:opened]];
-    NSString *js = [NSString stringWithFormat:@"cordova.fireDocumentEvent('urbanairship.push', %@);", json];
+    NSString *js = [NSString stringWithFormat:@"window.pushNotification.pushCallback(%@);", json];
     
     [self.commandDelegate evalJs:js scheduledOnRunLoop:NO];
     
@@ -232,7 +232,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     }
     
     NSString *json = [NSJSONSerialization stringWithObject:data];
-    NSString *js = [NSString stringWithFormat:@"cordova.fireDocumentEvent('urbanairship.registration', %@);", json];
+    NSString *js = [NSString stringWithFormat:@"window.pushNotification.registrationCallback(%@);", json];
     
     [self.commandDelegate evalJs:js scheduledOnRunLoop:NO];
     
@@ -550,7 +550,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     }];
 }
 
-#pragma mark UARegistrationObservers
+#pragma mark UARegistrationDelegate
 - (void)registerDeviceTokenSucceeded {
     UA_LINFO(@"PushNotificationPlugin: registered for remote notifications");
     
@@ -566,7 +566,14 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 #pragma mark UAPushNotificationDelegate
 - (void)launchedFromNotification:(NSDictionary *)notification {
     UA_LDEBUG(@"The application was launched or resumed from a notification %@", [notification description]);
+    
     self.incomingNotification = notification;
+    [[UAPush shared] setBadgeNumber:0]; // zero badge after push received
+    
+    NSString *alert = [self alertForUserInfo:notification];
+    NSMutableDictionary *extras = [self extrasForUserInfo:notification];
+    
+    [self raisePush:alert withExtras:extras active:NO opened:YES];
 }
 
 - (void)receivedForegroundNotification:(NSDictionary *)notification {
