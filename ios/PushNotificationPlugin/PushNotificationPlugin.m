@@ -70,7 +70,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
         }
     } else {
         //fail when there is a number mismatch
-        UA_LERR(@"Parameter number mismatch in cordova callback: expected %d and received %d", types.count, args.count);
+        UA_LERR(@"Parameter number mismatch in cordova callback: expected %lu and received %lu", (unsigned long)types.count, (unsigned long)args.count);
         return NO;
     }
     
@@ -123,7 +123,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
                 return;
             }
         } else if(command.arguments.count) {
-            UA_LERR(@"Parameter number mismatch: expected 0 and received %d", command.arguments.count);
+            UA_LERR(@"Parameter number mismatch: expected 0 and received %lu", (unsigned long)command.arguments.count);
             [self failWithCallbackID:command.callbackId];
             return;
         }
@@ -426,10 +426,10 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
                 NSDateComponents *startComponents = [gregorian components:NSHourCalendarUnit|NSMinuteCalendarUnit fromDate:startDate];
                 NSDateComponents *endComponents = [gregorian components:NSHourCalendarUnit|NSMinuteCalendarUnit fromDate:endDate];
                 
-                NSNumber *startHr = [NSNumber numberWithInt:startComponents.hour];
-                NSNumber *startMin = [NSNumber numberWithInt:startComponents.minute];
-                NSNumber *endHr = [NSNumber numberWithInt:endComponents.hour];
-                NSNumber *endMin = [NSNumber numberWithInt:endComponents.minute];
+                NSNumber *startHr = [NSNumber numberWithInteger:startComponents.hour];
+                NSNumber *startMin = [NSNumber numberWithInteger:startComponents.minute];
+                NSNumber *endHr = [NSNumber numberWithInteger:endComponents.hour];
+                NSNumber *endMin = [NSNumber numberWithInteger:endComponents.minute];
                 
                 returnDictionary = [NSDictionary dictionaryWithObjectsAndKeys:startHr,@"startHour",startMin,@"startMinute",
                                     endHr,@"endHour",endMin,@"endMinute",nil];
