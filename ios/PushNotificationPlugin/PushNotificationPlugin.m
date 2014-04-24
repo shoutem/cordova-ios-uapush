@@ -46,6 +46,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     [UAPush shared].pushNotificationDelegate = self;
     [UAPush shared].registrationDelegate = self;
     
+    [[UAirship shared].locationService setPurpose:@""];
     [[UAirship shared].locationService startReportingSignificantLocationChanges];
 }
 
