@@ -36,7 +36,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     }
     
     BOOL enablePushOnLaunch = [[settings valueForKey:@"com.urbanairship.enable_push_onlaunch"] boolValue];
-    [UAPush setDefaultPushEnabledValue:enablePushOnLaunch];
+    [[UAPush shared] setUserPushNotificationsEnabledByDefault:enablePushOnLaunch];
     
     // Create Airship singleton that's used to talk to Urban Airship servers.
     // Please populate AirshipConfig.plist with your info from http://go.urbanairship.com
@@ -46,7 +46,6 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     [UAPush shared].pushNotificationDelegate = self;
     [UAPush shared].registrationDelegate = self;
     
-    [[UAirship shared].locationService setPurpose:@""];
     [[UAirship shared].locationService startReportingSignificantLocationChanges];
 }
 
@@ -180,7 +179,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     return extras;
 }
 
-#pragma mark Phonegap bridge
+#pragma mark - Phonegap bridge
 - (NSDictionary *)notificationWithApplicationStateFromNotification:(NSDictionary *)notification active:(BOOL)active opened:(BOOL)opened
 {
     NSDictionary *applicationStateDictionary = @{@"active": [NSNumber numberWithBool:active],
@@ -249,9 +248,10 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
         id obj = [command.arguments objectAtIndex:0];
         
         if ([obj isKindOfClass:[NSNumber class]]) {
-            UIRemoteNotificationType bitmask = [obj intValue];
+            UIUserNotificationType bitmask = [obj intValue];
             UALOG(@"bitmask value: %d", [obj intValue]);
-            [[UAPush shared] registerForRemoteNotificationTypes:bitmask];
+            [[UAPush shared] setUserNotificationTypes:bitmask];
+            [[UAPush shared] updateRegistration];
             CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
             [self writeJavascript: [result toSuccessCallbackString:command.callbackId]];
         } else {
@@ -269,7 +269,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 
 - (void)enablePush:(CDVInvokedUrlCommand*)command {
     [self performCallbackWithCommand:command expecting:nil withVoidBlock:^(NSArray *args){
-        [UAPush shared].pushEnabled = YES;
+        [UAPush shared].userPushNotificationsEnabled = YES;
         //forces a reregistration
         [[UAPush shared] updateRegistration];
     }];
@@ -277,7 +277,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 
 - (void)disablePush:(CDVInvokedUrlCommand*)command {
     [self performCallbackWithCommand:command expecting:nil withVoidBlock:^(NSArray *args){
-        [UAPush shared].pushEnabled = NO;
+        [UAPush shared].userPushNotificationsEnabled = NO;
         //forces a reregistration
         [[UAPush shared] updateRegistration];
     }];
@@ -313,7 +313,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 
 - (void)isPushEnabled:(CDVInvokedUrlCommand*)command {
     [self performCallbackWithCommand:command expecting:nil withBlock:^(NSArray *args){
-        BOOL enabled = [UAPush shared].pushEnabled;
+        BOOL enabled = [UAPush shared].userPushNotificationsEnabled;
         return [NSNumber numberWithBool:enabled];
     }];
 }
@@ -493,27 +493,12 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 - (void)setQuietTime:(CDVInvokedUrlCommand*)command {
     Class c = [NSNumber class];
     [self performCallbackWithCommand:command expecting:[NSArray arrayWithObjects:c,c,c,c,nil] withVoidBlock:^(NSArray *args) {
-        id startHr = [args objectAtIndex:0];
-        id startMin = [args objectAtIndex:1];
-        id endHr = [args objectAtIndex:2];
-        id endMin = [args objectAtIndex:3];
+        int startHr = [[args objectAtIndex:0] intValue];
+        int startMin = [[args objectAtIndex:1] intValue];
+        int endHr = [[args objectAtIndex:2] intValue];
+        int endMin = [[args objectAtIndex:3] intValue];
         
-        NSDate *startDate;
-        NSDate *endDate;
-        
-        NSCalendar *gregorian = [[NSCalendar alloc] initWithCalendarIdentifier:NSGregorianCalendar];
-        NSDateComponents *startComponents = [gregorian components:NSYearCalendarUnit fromDate:[NSDate date]];
-        NSDateComponents *endComponents = [gregorian components:NSYearCalendarUnit fromDate:[NSDate date]];
-        
-        startComponents.hour = [startHr intValue];
-        startComponents.minute =[startMin intValue];
-        endComponents.hour = [endHr intValue];
-        endComponents.minute = [endMin intValue];
-        
-        startDate = [gregorian dateFromComponents:startComponents];
-        endDate = [gregorian dateFromComponents:endComponents];
-        
-        [[UAPush shared] setQuietTimeFrom:startDate to:endDate withTimeZone:[NSTimeZone localTimeZone]];
+        [[UAPush shared] setQuietTimeStartHour:startHr startMinute:startMin endHour:endHr endMinute:endMin];
         [[UAPush shared] updateRegistration];
     }];
 }
@@ -551,20 +536,22 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     }];
 }
 
-#pragma mark UARegistrationDelegate
-- (void)registerDeviceTokenSucceeded {
+#pragma mark - UARegistrationDelegate
+- (void)registrationSucceededForChannelID:(NSString *)channelID deviceToken:(NSString *)deviceToken
+{
     UA_LINFO(@"PushNotificationPlugin: registered for remote notifications");
     
-    [self raiseRegistration:YES withpushID:[UAirship shared].deviceToken];
+    [self raiseRegistration:YES withpushID:deviceToken];
 }
 
-- (void)registerDeviceTokenFailed:(UAHTTPRequest *)request {
-    UA_LINFO(@"PushNotificationPlugin: Failed to register for remote notifications with request: %@", request);
+-(void)registrationFailed
+{
+    UA_LINFO(@"PushNotificationPlugin: Failed to register for remote notifications");
     
     [self raiseRegistration:NO withpushID:@""];
 }
 
-#pragma mark UAPushNotificationDelegate
+#pragma mark - UAPushNotificationDelegate
 - (void)launchedFromNotification:(NSDictionary *)notification {
     UA_LDEBUG(@"The application was launched or resumed from a notification %@", [notification description]);
     
@@ -577,7 +564,8 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     [self raisePush:alert withExtras:extras active:NO opened:YES];
 }
 
-- (void)receivedForegroundNotification:(NSDictionary *)notification {
+- (void)receivedForegroundNotification:(NSDictionary *)notification fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler
+{
     UA_LDEBUG(@"Received a notification while the app was already in the foreground %@", [notification description]);
     
     [[UAPush shared] setBadgeNumber:0]; // zero badge after push received
@@ -586,13 +574,14 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     NSMutableDictionary *extras = [self extrasForUserInfo:notification];
     
     [self raisePush:alert withExtras:extras active:YES opened:NO];
+    
+    completionHandler(UIBackgroundFetchResultNoData);
 }
 
-#pragma mark Other stuff
+#pragma mark - Other stuff
 
 - (void)dealloc {
     [UAPush shared].pushNotificationDelegate = nil;
-    [[UAPush shared] removeObserver:self];
 }
 
 - (void)failIfSimulator {
