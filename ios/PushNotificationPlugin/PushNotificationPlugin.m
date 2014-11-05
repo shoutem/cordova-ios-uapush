@@ -564,7 +564,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     [self raisePush:alert withExtras:extras active:NO opened:YES];
 }
 
-- (void)receivedForegroundNotification:(NSDictionary *)notification fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler
+- (void)receivedForegroundNotification:(NSDictionary *)notification
 {
     UA_LDEBUG(@"Received a notification while the app was already in the foreground %@", [notification description]);
     
@@ -574,7 +574,11 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     NSMutableDictionary *extras = [self extrasForUserInfo:notification];
     
     [self raisePush:alert withExtras:extras active:YES opened:NO];
-    
+}
+
+- (void)receivedForegroundNotification:(NSDictionary *)notification fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler
+{
+    [self receivedForegroundNotification:notification];
     completionHandler(UIBackgroundFetchResultNoData);
 }
 
