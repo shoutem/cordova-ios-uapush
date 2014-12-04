@@ -12,12 +12,17 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 @interface PushNotificationPlugin()
 - (void)takeOff;
 @property (nonatomic, copy) NSDictionary *incomingNotification;
+@property (nonatomic, assign) BOOL disablePush;
 @end
 
 @implementation PushNotificationPlugin
 
 - (void)pluginInitialize {
     UA_LINFO("Initializing PushNotificationPlugin");
+    
+    NSDictionary *settingsDictionary = [NSDictionary dictionaryWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"settings" ofType:@"plist"]];
+    self.disablePush = [[settingsDictionary objectForKey:@"disable_push"] boolValue];
+    
     [self takeOff];
 }
 
@@ -35,7 +40,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
         config.inProduction = [[settings valueForKey:@"com.urbanairship.in_production"] boolValue];
     }
     
-    BOOL enablePushOnLaunch = [[settings valueForKey:@"com.urbanairship.enable_push_onlaunch"] boolValue];
+    BOOL enablePushOnLaunch = !self.disablePush && [[settings valueForKey:@"com.urbanairship.enable_push_onlaunch"] boolValue];
     [[UAPush shared] setUserPushNotificationsEnabledByDefault:enablePushOnLaunch];
     
     // Create Airship singleton that's used to talk to Urban Airship servers.
@@ -269,6 +274,11 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 
 - (void)enablePush:(CDVInvokedUrlCommand*)command {
     [self performCallbackWithCommand:command expecting:nil withVoidBlock:^(NSArray *args){
+        if (self.disablePush) {
+            // Push is explicitly disabled in settings, do nothing
+            return;
+        }
+        
         [UAPush shared].userPushNotificationsEnabled = YES;
         //forces a reregistration
         [[UAPush shared] updateRegistration];
