@@ -1,3 +1,4 @@
+#ifdef FEATURE_UA
 //
 //  UrbanAirshipPlugin.h
 //  urbanairship.richpush
@@ -15,3 +16,5 @@
 }
 
 @end
+
+#endif

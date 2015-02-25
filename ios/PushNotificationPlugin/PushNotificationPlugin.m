@@ -1,3 +1,4 @@
+#ifdef FEATURE_UA
 #import "PushNotificationPlugin.h"
 #import "UAPush.h"
 #import "UAirship.h"
@@ -611,3 +612,5 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 }
 
 @end
+
+#endif
