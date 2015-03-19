@@ -43,6 +43,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     BOOL enablePushOnLaunch = !self.disablePush && [[settings valueForKey:@"com.urbanairship.enable_push_onlaunch"] boolValue];
     [[UAPush shared] setUserPushNotificationsEnabledByDefault:enablePushOnLaunch];
     
+    [UAPush shared].deviceTagsEnabled = NO;
     // Create Airship singleton that's used to talk to Urban Airship servers.
     // Please populate AirshipConfig.plist with your info from http://go.urbanairship.com
     [UAirship takeOff:config];
