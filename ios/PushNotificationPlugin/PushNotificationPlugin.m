@@ -477,6 +477,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 
 - (void)setTags:(CDVInvokedUrlCommand*)command {
     [self performCallbackWithCommand:command expecting:[NSArray arrayWithObjects:[NSArray class],nil] withVoidBlock:^(NSArray *args) {
+        [UAPush shared].deviceTagsEnabled = YES;
         NSMutableArray *tags = [NSMutableArray arrayWithArray:[args objectAtIndex:0]];
         [UAPush shared].tags = tags;
         [[UAPush shared] updateRegistration];
