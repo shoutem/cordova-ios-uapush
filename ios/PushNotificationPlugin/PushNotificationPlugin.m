@@ -452,10 +452,17 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 }
 
 - (void)getTags:(CDVInvokedUrlCommand*)command {
-    [self performCallbackWithCommand:command expecting:nil withBlock:^(NSArray *args){
-        NSArray *tags = [UAPush shared].tags? : [NSArray array];
-        NSDictionary *returnDictionary = [NSDictionary dictionaryWithObjectsAndKeys:tags, @"tags", nil];
-        return returnDictionary;
+    [self getTagsFromServer:^(NSArray *tags) {
+        NSArray *result = [NSArray array];
+        if (tags) {
+            result = tags;
+            [UAPush shared].tags = tags;
+        }
+        
+        [self performCallbackWithCommand:command expecting:nil withBlock:^(NSArray *args){
+            NSDictionary *returnDictionary = [NSDictionary dictionaryWithObjectsAndKeys:result, @"tags", nil];
+            return returnDictionary;
+        }];
     }];
 }
 
@@ -609,6 +616,43 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
         
         [someError show];
     }
+}
+
+- (void)getTagsFromServer:(void (^)(NSArray *tags))handler {
+    UAConfig *config = [UAirship shared].config;
+    
+    // Construct url to UA device API to get data for current channel (installation)
+    NSString *url = [NSString stringWithFormat:@"%@/api/channels/%@", config.deviceAPIURL, [UAPush shared].channelID];
+    
+    // Construct the Basic Authorization header value using the appKey and appSecret
+    NSString *authStr = [NSString stringWithFormat:@"%@:%@", config.appKey, config.appSecret];
+    NSData *authData = [authStr dataUsingEncoding:NSUTF8StringEncoding];
+    NSString *authValue = [NSString stringWithFormat:@"Basic %@", [authData base64EncodedStringWithOptions:NSDataBase64EncodingEndLineWithLineFeed]];
+    
+    // Construct and send request
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
+    [request setHTTPMethod:@"GET"];
+    [request setValue:authValue forHTTPHeaderField:@"Authorization"];
+    
+    [NSURLConnection sendAsynchronousRequest:request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError) {
+        if (connectionError) {
+            return handler(nil);
+        }
+        if (data) {
+            NSError *error;
+            NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
+            if (error) {
+                return handler(nil);
+            }
+            
+            NSDictionary *channel = [json objectForKey:@"channel"];
+            if (channel) {
+                NSArray *tags = [channel objectForKey:@"tags"];
+                return handler(tags);
+            }
+        }
+        return handler(nil);
+    }];
 }
 
 @end
