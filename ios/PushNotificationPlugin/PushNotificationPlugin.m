@@ -43,6 +43,9 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     BOOL enablePushOnLaunch = !self.disablePush && [[settings valueForKey:@"com.urbanairship.enable_push_onlaunch"] boolValue];
     [[UAPush shared] setUserPushNotificationsEnabledByDefault:enablePushOnLaunch];
     
+    // Disable setting tags from the device on registration so we don't clear any tags set via REST API
+    // For more info check getTagsFromServer: comment
+    [UAPush shared].deviceTagsEnabled = NO;
     // Create Airship singleton that's used to talk to Urban Airship servers.
     // Please populate AirshipConfig.plist with your info from http://go.urbanairship.com
     [UAirship takeOff:config];
@@ -451,10 +454,17 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 }
 
 - (void)getTags:(CDVInvokedUrlCommand*)command {
-    [self performCallbackWithCommand:command expecting:nil withBlock:^(NSArray *args){
-        NSArray *tags = [UAPush shared].tags? : [NSArray array];
-        NSDictionary *returnDictionary = [NSDictionary dictionaryWithObjectsAndKeys:tags, @"tags", nil];
-        return returnDictionary;
+    [self getTagsFromServer:^(NSArray *tags) {
+        NSArray *result = [NSArray array];
+        if (tags) {
+            result = tags;
+            [UAPush shared].tags = tags;
+        }
+        
+        [self performCallbackWithCommand:command expecting:nil withBlock:^(NSArray *args){
+            NSDictionary *returnDictionary = [NSDictionary dictionaryWithObjectsAndKeys:result, @"tags", nil];
+            return returnDictionary;
+        }];
     }];
 }
 
@@ -469,6 +479,11 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 
 - (void)setTags:(CDVInvokedUrlCommand*)command {
     [self performCallbackWithCommand:command expecting:[NSArray arrayWithObjects:[NSArray class],nil] withVoidBlock:^(NSArray *args) {
+        // Since we disabled device tags before registration, we need to enable them again here
+        // otherwise nothing will be sent. It is important to always use the flow of getTags:,
+        // modify the returned array and then call setTags: with that array to avoid clearing
+        // tags set via REST API.
+        [UAPush shared].deviceTagsEnabled = YES;
         NSMutableArray *tags = [NSMutableArray arrayWithArray:[args objectAtIndex:0]];
         [UAPush shared].tags = tags;
         [[UAPush shared] updateRegistration];
@@ -608,6 +623,48 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
         
         [someError show];
     }
+}
+
+// Urban Airship supports setting tags from the device via SDK or from the server via their
+// REST API. However, tags set from these two locations don't play nicely with eachother -
+// the device does not fetch tags set via the API and setting the tags from the device will
+// clear any tags set via API. This method is a workaround for that limitation, it fetches
+// the UA channel from their private device API, and channel contains an array of tags
+- (void)getTagsFromServer:(void (^)(NSArray *tags))handler {
+    UAConfig *config = [UAirship shared].config;
+    
+    // Construct url to UA device API to get data for current channel (installation)
+    NSString *url = [NSString stringWithFormat:@"%@/api/channels/%@", config.deviceAPIURL, [UAPush shared].channelID];
+    
+    // Construct the Basic Authorization header value using the appKey and appSecret
+    NSString *authStr = [NSString stringWithFormat:@"%@:%@", config.appKey, config.appSecret];
+    NSData *authData = [authStr dataUsingEncoding:NSUTF8StringEncoding];
+    NSString *authValue = [NSString stringWithFormat:@"Basic %@", [authData base64EncodedStringWithOptions:NSDataBase64EncodingEndLineWithLineFeed]];
+    
+    // Construct and send request
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
+    [request setHTTPMethod:@"GET"];
+    [request setValue:authValue forHTTPHeaderField:@"Authorization"];
+    
+    [NSURLConnection sendAsynchronousRequest:request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError) {
+        if (connectionError) {
+            return handler(nil);
+        }
+        if (data) {
+            NSError *error;
+            NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
+            if (error) {
+                return handler(nil);
+            }
+            
+            NSDictionary *channel = [json objectForKey:@"channel"];
+            if (channel) {
+                NSArray *tags = [channel objectForKey:@"tags"];
+                return handler(tags);
+            }
+        }
+        return handler(nil);
+    }];
 }
 
 @end
