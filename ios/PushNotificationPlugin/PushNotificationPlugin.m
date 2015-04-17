@@ -5,19 +5,14 @@
 #import "UALocationService.h"
 #import "UAConfig.h"
 #import "NSJSONSerialization+UAAdditions.h"
-#import "SECommandQueue.h"
 
 typedef id (^UACordovaCallbackBlock)(NSArray *args);
 typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
-
-#define TRIGGER_REGISTERED  @"registered"
 
 @interface PushNotificationPlugin()
 - (void)takeOff;
 @property (nonatomic, copy) NSDictionary *incomingNotification;
 @property (nonatomic, assign) BOOL disablePush;
-@property (nonatomic, assign) BOOL isRegistered;
-@property (nonatomic, retain) SECommandQueue *commandQueue;
 @end
 
 @implementation PushNotificationPlugin
@@ -27,8 +22,6 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
     
     NSDictionary *settingsDictionary = [NSDictionary dictionaryWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"settings" ofType:@"plist"]];
     self.disablePush = [[settingsDictionary objectForKey:@"disable_push"] boolValue];
-    self.isRegistered = NO;
-    self.commandQueue = [[SECommandQueue alloc] init];
     
     [self takeOff];
 }
@@ -461,12 +454,6 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 }
 
 - (void)getTags:(CDVInvokedUrlCommand*)command {
-    if (!self.isRegistered) {
-        // Device not registered yet, queue this command for execution when registered
-        [self.commandQueue queueCommand:command forSelector:@selector(getTags:) onObject:self toTriggerOn:TRIGGER_REGISTERED];
-        return;
-    }
-    
     [self getTagsFromServer:^(NSArray *tags) {
         NSArray *result = [NSArray array];
         if (tags) {
@@ -579,9 +566,7 @@ typedef void (^UACordovaVoidCallbackBlock)(NSArray *args);
 {
     UA_LINFO(@"PushNotificationPlugin: registered for remote notifications");
     
-    self.isRegistered = YES;
     [self raiseRegistration:YES withpushID:deviceToken];
-    [self.commandQueue triggerCondition:TRIGGER_REGISTERED];
 }
 
 -(void)registrationFailed

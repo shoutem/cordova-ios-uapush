@@ -10,8 +10,9 @@
 #import <Cordova/CDVPlugin.h>
 #import "UAPush.h"
 
-@interface PushNotificationPlugin : CDVPlugin <UARegistrationDelegate, UAPushNotificationDelegate> {
-    
-}
+@interface PushNotificationPlugin : CDVPlugin <UARegistrationDelegate, UAPushNotificationDelegate>
+
+- (void)getTags:(CDVInvokedUrlCommand*)command;
+
 
 @end
