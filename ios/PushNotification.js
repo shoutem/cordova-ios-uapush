@@ -174,8 +174,8 @@ PushNotification.prototype.getQuietTime = function (callback) {
   this.call_native(callback, "getQuietTime");
 }
 
-PushNotification.prototype.getTags = function (callback) {
-  this.call_native(callback, "getTags");
+PushNotification.prototype.getTags = function (success, error) {
+  cordova.exec(success, error, 'PushNotificationPlugin', 'getTags', []);
 }
 
 PushNotification.prototype.getAlias = function (callback) {
